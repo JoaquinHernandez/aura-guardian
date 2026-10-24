@@ -1,0 +1,112 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+CONFIG_PATH="/etc/aura-guardian/config.json"
+STATE_FILE="/var/lib/aura-guard/bans.json"
+LOG_FILE="/var/log/aura-guard/guardian.log"
+
+if [[ $EUID -ne 0 ]]; then
+   echo "[-] Error: aura-ctl requires root privileges. Please run with sudo."
+   exit 1
+fi
+
+usage() {
+    echo "Usage: aura-ctl [command]"
+    echo ""
+    echo "Commands:"
+    echo "  status         Display daemon status, live IPSet bans, and egress policy"
+    echo "  test           Simulate an outbound unauthorized connection to test reverse-shell containment"
+    echo "  unban <ip>     Manually unban an IP address from the kernel IPSet"
+    echo "  enforce        Toggle enforcement mode (active drops vs audit/logging only)"
+    echo "  logs           Stream live guardian and threat detection events"
+    echo "  help           Show this message"
+    exit 0
+}
+
+cmd="${1:-help}"
+
+case "$cmd" in
+    status)
+        echo "=== [Aura Guardian Status] ==="
+        systemctl is-active --quiet aura-guardian && echo "Daemon: ACTIVE (Running)" || echo "Daemon: INACTIVE (Stopped)"
+        
+        ENFORCE=$(grep -o '"enforce_egress": [^,]*' "$CONFIG_PATH" | awk '{print $2}')
+        if [[ "$ENFORCE" == "true" ]]; then
+            echo "Egress Containment: ACTIVE DROP (Reverse shells blocked)"
+        else
+            echo "Egress Containment: AUDIT / PASSIVE (Alerts logged to dmesg, no drops)"
+        fi
+
+        echo ""
+        echo "=== [Active Kernel Null-Routes (IPSet)] ==="
+        if ipset list aura_blacklist >/dev/null 2>&1; then
+            COUNT=$(ipset list aura_blacklist | grep -E "^[0-9]" | wc -l || true)
+            echo "Total Banned IPs: $COUNT"
+            echo "Recent Entries:"
+            ipset list aura_blacklist | grep -E "^[0-9]" | head -n 10 || echo "  (None)"
+        else
+            echo "IPSet table 'aura_blacklist' not initialized."
+        fi
+        ;;
+
+    test)
+        echo "[*] Detecting restricted web service user..."
+        WEB_USER=$(grep -A 2 '"restricted_users"' "$CONFIG_PATH" | grep -o '"[^"]*"' | tail -n 1 | tr -d '"')
+        if ! id "$WEB_USER" >/dev/null 2>&1; then
+            WEB_USER="nobody"
+        fi
+        echo "[*] Running simulated reverse-shell probe as user: $WEB_USER"
+        echo "[*] Connecting to 198.51.100.1:4444 (Non-standard egress test)..."
+        
+        set +e
+        su -s /bin/bash "$WEB_USER" -c "timeout 2 bash -c 'cat < /dev/null > /dev/tcp/198.51.100.1/4444'" 2>/dev/null
+        set -euo pipefail
+
+        sleep 1
+        echo ""
+        echo "=== [Kernel Detection Results] ==="
+        DMESG_OUTPUT=$(dmesg -T | grep -E "AURA_REV_SHELL" | tail -n 3 || true)
+        if [[ -n "$DMESG_OUTPUT" ]]; then
+            echo "[✓] SUCCESS: Kernel trap caught unauthorized egress attempt:"
+            echo "$DMESG_OUTPUT"
+        else
+            echo "[!] Notice: No dmesg alert found. Check if the daemon is running with 'sudo systemctl status aura-guardian'."
+        fi
+        ;;
+
+    unban)
+        TARGET_IP="${2:-}"
+        if [[ -z "$TARGET_IP" ]]; then
+            echo "Usage: aura-ctl unban <ip_address>"
+            exit 1
+        fi
+        ipset del aura_blacklist "$TARGET_IP" 2>/dev/null && echo "[✓] Successfully unbanned $TARGET_IP from kernel table." || echo "[-] IP not found in active set."
+        ;;
+
+    enforce)
+        CURRENT=$(grep -o '"enforce_egress": [^,]*' "$CONFIG_PATH" | awk '{print $2}')
+        if [[ "$CURRENT" == "false" ]]; then
+            echo "[!] WARNING: You are enabling active packet drops for unsanctioned outbound traffic."
+            read -p "Are you sure you want to proceed? [y/N]: " CONFIRM
+            if [[ "$CONFIRM" =~ ^[Yy]$ ]]; then
+                sed -i 's/"enforce_egress": false/"enforce_egress": true/' "$CONFIG_PATH"
+                systemctl restart aura-guardian
+                echo "[✓] Enforcement ACTIVE. Reverse shells will now be severed instantly."
+            else
+                echo "Aborted."
+            fi
+        else
+            sed -i 's/"enforce_egress": true/"enforce_egress": false/' "$CONFIG_PATH"
+            systemctl restart aura-guardian
+            echo "[✓] Enforcement set to AUDIT/PASSIVE mode. Packets will be logged, not dropped."
+        fi
+        ;;
+
+    logs)
+        tail -f "$LOG_FILE"
+        ;;
+
+    *)
+        usage
+        ;;
+esac
