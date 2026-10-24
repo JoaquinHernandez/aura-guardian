@@ -84,6 +84,27 @@ Bash
 sudo aura-ctl test
 Inspect the live stream:
 
+
+Hardened Deployment Checklist
+Before pushing this code to your public GitHub repo:
+
+Verify File Permissions:
+Ensure the configuration directory and state database are strictly restricted to root:
+
+Bash
+sudo chmod 700 /etc/aura-guardian
+sudo chmod 600 /etc/aura-guardian/config.json
+sudo chmod 700 /var/lib/aura-guard
+sudo chmod 700 /usr/local/sbin/aura-guardian-daemon.py
+sudo chmod 755 /usr/local/bin/aura-ctl
+Run Syntax & Linter Validation:
+Ensure no syntax regressions or type errors exist:
+
+Bash
+python3 -m py_compile usr/local/sbin/aura-guardian-daemon.py
+Verify Reverse-Proxy Configurations:
+If running behind a CDN or load balancer (e.g., Cloudflare), ensure Nginx has set_real_ip_from and real_ip_header CF-Connecting-IP; configured. Otherwise, the client IP in access logs will belong to the proxy, risking an inadvertent proxy ban.
+
 Bash
 sudo aura-ctl status
 sudo aura-ctl logs
