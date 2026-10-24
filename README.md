@@ -1,5 +1,7 @@
 # aura-guardian
 # 🛡️ Aura Guardian
+<img width="1043" height="718" alt="image" src="https://github.com/user-attachments/assets/7b77eac0-6af4-4d84-b8f4-70221940829e" />
+
 
 <img width="623" height="459" alt="image" src="https://github.com/user-attachments/assets/926c219a-060c-419b-a7de-68ae0b407e2a" />
 
