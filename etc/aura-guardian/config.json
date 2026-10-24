@@ -1,0 +1,31 @@
+{
+  "firewall": {
+    "ipset_name": "aura_blacklist",
+    "enforce_egress": false,
+    "whitelisted_ips": ["127.0.0.1", "::1"],
+    "whitelisted_subnets": ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"],
+    "egress_rules": {
+      "restricted_users": ["www-data"],
+      "allow_dns": true,
+      "allow_ntp": true,
+      "allow_http_https": true,
+      "extra_allowed_tcp_ports": [9443],
+      "extra_allowed_destinations": [
+        {
+          "proto": "tcp",
+          "destination": "10.88.0.1",
+          "port": 27017,
+          "comment": "Internal DB"
+        }
+      ]
+    }
+  },
+  "daemon": {
+    "ban_duration_seconds": 86400,
+    "trigger_threshold": 3,
+    "watched_logs": [
+      "/var/log/nginx/access.log",
+      "/var/log/nginx/error.log"
+    ]
+  }
+}
