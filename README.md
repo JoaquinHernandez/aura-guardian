@@ -47,3 +47,42 @@ www-data]: IN= OUT=eth0 SRC=192.168.1.50 DST=198.51.100.1 PROTO=TCP SPT=49152 DP
 
 sudo aura-ctl enforce
 
+📋 Command Cheat Sheet
+Command	Action
+sudo aura-ctl status	View active bans, daemon state, and policy mode
+sudo aura-ctl test	Trigger simulated reverse shell and verify kernel alerts
+sudo aura-ctl logs	Stream guardian live attack detection logs
+sudo aura-ctl enforce	Toggle between Audit (passive) and Enforce (active drop) mode
+sudo aura-ctl unban <ip>	Manually remove an IP from the kernel null-route table
+🧹 Clean Removal
+Bash
+sudo ./uninstall.sh
+⚖️ License
+Distributed under the MIT License. See LICENSE for details.
+
+
+---
+
+### Step-by-Step Test Procedure for Your Own Machine
+
+1. **Create the Project Directory locally:**
+   ```bash
+   mkdir -p aura-guardian/{bin,etc/aura-guardian,usr/local/sbin}
+Save the files above into their designated paths (bin/aura-ctl, install.sh, uninstall.sh, usr/local/sbin/aura-guardian-daemon.py).
+
+Execute local installation:
+
+Bash
+cd aura-guardian
+chmod +x install.sh uninstall.sh bin/aura-ctl
+sudo ./install.sh
+Run the self-test:
+
+Bash
+sudo aura-ctl test
+Inspect the live stream:
+
+Bash
+sudo aura-ctl status
+sudo aura-ctl logs
+
